@@ -1,6 +1,7 @@
 const express = require('express')
 const bodyParser = require('body-parser')
 const fetch = require('node-fetch')
+const path = require('path')
 const crawler = require('./crawler')
 const strategy = require('../shared/strategy')
 const manifester = require('./manifest')
@@ -10,6 +11,9 @@ const coinbaseAdapter = require('./adapters/coinbase')
 
 const app = express()
 app.use(bodyParser.json())
+
+// Serve the product UI static files
+app.use('/products-ui', express.static(path.join(__dirname, 'static')))
 
 let running = false
 let actions = []
@@ -119,6 +123,26 @@ app.post('/products/:id/credentials', (req, res) => {
   if (!label || !encBlob) return res.status(400).json({ error: 'label and encBlob required' })
   const cred = products.storeCredential(id, label, encBlob)
   res.json({ ok: true, credential: cred })
+})
+
+// test credential endpoint: accepts encrypted blob and runs adapter test if available
+app.post('/products/:id/credentials/test', async (req, res) => {
+  const id = req.params.id
+  const { encBlob } = req.body || {}
+  if (!encBlob) return res.status(400).json({ error: 'encBlob required' })
+  const p = products.getProduct(id)
+  if (!p) return res.status(404).json({ error: 'product not found' })
+  try {
+    // demo: adapter test could decrypt and call provider; here we simulate a result
+    // If adapter has a test method, call it. For now coinbase adapter is demo and returns success for any blob.
+    let adapter = null
+    if (p.slug === 'coinbase') adapter = coinbaseAdapter
+    else adapter = coinbaseAdapter
+    const r = await adapter.execute({ test:true }, encBlob, 'dry')
+    res.json({ ok: true, result: r })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 app.get('/products/:id/credentials', (req, res) => {
