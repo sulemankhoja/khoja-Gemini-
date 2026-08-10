@@ -7,13 +7,13 @@ const STORE_FILE = path.join(DATA_DIR, 'store.json')
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 
 function _load() {
-  if (!fs.existsSync(STORE_FILE)) return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [], credentials: [], transactions: [] }
+  if (!fs.existsSync(STORE_FILE)) return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [], credentials: [], transactions: [], artifacts: [] }
   try {
     const txt = fs.readFileSync(STORE_FILE, 'utf8')
     return JSON.parse(txt)
   } catch (e) {
     console.error('Failed to read store.json', e.message)
-    return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [], credentials: [], transactions: [] }
+    return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [], credentials: [], transactions: [], artifacts: [] }
   }
 }
 
@@ -151,4 +151,44 @@ function listTransactions(filter) {
   })
 }
 
-module.exports = { _load, _save, listManifests, addManifest, publishManifest, rejectManifest, addPricing, listPricing, addRawCrawl, addDerivedActions, listDerivedActions, addCredential, listCredentials, deleteCredential, addTransaction, listTransactions }
+// Artifacts (uploaded/imported files)
+function addArtifact(meta) {
+  const s = _load()
+  const id = `art_${Date.now()}`
+  meta.id = id
+  meta.createdAt = new Date().toISOString()
+  s.artifacts = s.artifacts || []
+  s.artifacts.push(meta)
+  _save(s)
+  return meta
+}
+
+function listArtifacts(filter) {
+  const s = _load()
+  let a = s.artifacts || []
+  if (!filter) return a
+  return a.filter(art => {
+    for (const k of Object.keys(filter)) {
+      if (art[k] !== filter[k]) return false
+    }
+    return true
+  })
+}
+
+function getArtifact(id) {
+  const s = _load()
+  return (s.artifacts || []).find(x => x.id === id)
+}
+
+function attachArtifactToProduct(productId, artifactId) {
+  const s = _load()
+  s.pricing = s.pricing || []
+  const p = s.pricing.find(x => x.id === productId || x.slug === productId)
+  if (!p) return false
+  p.artifacts = p.artifacts || []
+  if (!p.artifacts.includes(artifactId)) p.artifacts.push(artifactId)
+  _save(s)
+  return true
+}
+
+module.exports = { _load, _save, listManifests, addManifest, publishManifest, rejectManifest, addPricing, listPricing, addRawCrawl, addDerivedActions, listDerivedActions, addCredential, listCredentials, deleteCredential, addTransaction, listTransactions, addArtifact, listArtifacts, getArtifact, attachArtifactToProduct }
