@@ -7,13 +7,13 @@ const STORE_FILE = path.join(DATA_DIR, 'store.json')
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 
 function _load() {
-  if (!fs.existsSync(STORE_FILE)) return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [] }
+  if (!fs.existsSync(STORE_FILE)) return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [], credentials: [], transactions: [] }
   try {
     const txt = fs.readFileSync(STORE_FILE, 'utf8')
     return JSON.parse(txt)
   } catch (e) {
     console.error('Failed to read store.json', e.message)
-    return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [] }
+    return { manifests: [], pricing: [], raw_crawl: [], derived_actions: [], credentials: [], transactions: [] }
   }
 }
 
@@ -103,4 +103,52 @@ function listDerivedActions(filter) {
   })
 }
 
-module.exports = { listManifests, addManifest, publishManifest, rejectManifest, addPricing, listPricing, addRawCrawl, addDerivedActions, listDerivedActions }
+// Credentials handling
+function addCredential(productId, label, encBlob) {
+  const s = _load()
+  const id = `cred_${Date.now()}`
+  s.credentials = s.credentials || []
+  const rec = { id, productId, label, blob: encBlob, createdAt: new Date().toISOString() }
+  s.credentials.push(rec)
+  _save(s)
+  return rec
+}
+
+function listCredentials(productId) {
+  const s = _load()
+  return (s.credentials || []).filter(c => c.productId === productId)
+}
+
+function deleteCredential(credId) {
+  const s = _load()
+  s.credentials = s.credentials || []
+  const idx = s.credentials.findIndex(c => c.id === credId)
+  if (idx === -1) return false
+  s.credentials.splice(idx, 1)
+  _save(s)
+  return true
+}
+
+// Transactions
+function addTransaction(tx) {
+  const s = _load()
+  tx.recordedAt = new Date().toISOString()
+  tx.id = tx.id || `tx_${Date.now()}`
+  s.transactions = s.transactions || []
+  s.transactions.push(tx)
+  _save(s)
+  return tx
+}
+
+function listTransactions(filter) {
+  const s = _load()
+  if (!filter) return s.transactions || []
+  return (s.transactions || []).filter(t => {
+    for (const k of Object.keys(filter)) {
+      if (t[k] !== filter[k]) return false
+    }
+    return true
+  })
+}
+
+module.exports = { _load, _save, listManifests, addManifest, publishManifest, rejectManifest, addPricing, listPricing, addRawCrawl, addDerivedActions, listDerivedActions, addCredential, listCredentials, deleteCredential, addTransaction, listTransactions }

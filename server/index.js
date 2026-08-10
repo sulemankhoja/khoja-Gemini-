@@ -5,6 +5,8 @@ const crawler = require('./crawler')
 const strategy = require('../shared/strategy')
 const manifester = require('./manifest')
 const storage = require('./storage')
+const products = require('./products')
+const coinbaseAdapter = require('./adapters/coinbase')
 
 const app = express()
 app.use(bodyParser.json())
@@ -45,7 +47,6 @@ app.post('/install-updates', async (req, res) => {
 app.post('/updates/fetch', async (req, res) => {
   const category = (req.query.category) || 'general'
   try {
-    // For now, reuse fetchActionsOnce which scrapes news; in future we'll scope by category
     const derived = await crawler.fetchActionsOnce()
     const signed = manifester.createManifest(derived)
     const rec = storage.addManifest(signed.manifest, signed.signature, 'pending', category)
@@ -86,8 +87,56 @@ app.get('/pricing', (req, res) => {
   res.json(p)
 })
 
+app.get('/products', (req, res) => {
+  const p = products.listProducts()
+  res.json(p)
+})
+
+app.get('/products/:id/info', (req, res) => {
+  const id = req.params.id
+  const p = products.getProduct(id)
+  if (!p) return res.status(404).json({ error: 'product not found' })
+  res.json(p)
+})
+
+app.post('/products/:id/activate', (req, res) => {
+  const id = req.params.id
+  const p = products.activateProduct(id)
+  if (!p) return res.status(404).json({ error: 'product not found' })
+  res.json({ ok: true, product: p })
+})
+
+app.post('/products/:id/deactivate', (req, res) => {
+  const id = req.params.id
+  const p = products.deactivateProduct(id)
+  if (!p) return res.status(404).json({ error: 'product not found' })
+  res.json({ ok: true, product: p })
+})
+
+app.post('/products/:id/credentials', (req, res) => {
+  const id = req.params.id
+  const { label, encBlob } = req.body || {}
+  if (!label || !encBlob) return res.status(400).json({ error: 'label and encBlob required' })
+  const cred = products.storeCredential(id, label, encBlob)
+  res.json({ ok: true, credential: cred })
+})
+
+app.get('/products/:id/credentials', (req, res) => {
+  const id = req.params.id
+  const creds = products.listCredentials(id)
+  res.json(creds)
+})
+
+app.delete('/products/:id/credentials/:credId', (req, res) => {
+  const credId = req.params.credId
+  const ok = products.deleteCredential(credId)
+  if (!ok) return res.status(404).json({ error: 'credential not found' })
+  res.json({ ok: true })
+})
+
 app.get('/actions', (req, res) => res.json(actions))
 
+// apply remains paper-mode simulation
 app.post('/apply', async (req, res) => {
   const ids = (req.body && req.body.ids) || []
   const selected = actions.filter(a=>ids.includes(a.id))
@@ -107,6 +156,39 @@ app.post('/apply', async (req, res) => {
     }
   }
   res.json(results)
+})
+
+// live execution endpoint (requires product enabled & credential)
+app.post('/execute', async (req, res) => {
+  const { actionId, credentialId, mode } = req.body || {}
+  if (!actionId) return res.status(400).json({ error: 'actionId required' })
+  const act = actions.find(a => a.id === actionId)
+  if (!act) return res.status(404).json({ error: 'action not found' })
+  const prodId = act.apiHints && act.apiHints.productId
+  if (!prodId) return res.status(400).json({ error: 'action has no product hint' })
+  const prod = products.getProduct(prodId)
+  if (!prod || !prod.enabled) return res.status(409).json({ error: 'product not enabled', productId: prodId })
+  const creds = products.listCredentials(prodId)
+  if (!creds || creds.length === 0) return res.status(409).json({ error: 'no credentials for product', productId: prodId })
+  const cred = creds.find(c => c.id === credentialId) || creds[0]
+  if (!cred) return res.status(404).json({ error: 'credential not found' })
+  try {
+    // decrypt of cred.blob is done client-side (we store encrypted blobs only). For demo, pass the blob to adapter.
+    let adapter = null
+    if (prod.slug === 'coinbase') adapter = coinbaseAdapter
+    else adapter = coinbaseAdapter // fallback
+    const result = await adapter.execute(act, cred.blob, mode || 'dry')
+    // persist transaction
+    const tx = storage.addTransaction({ actionId: act.id, provider: prod.slug, credentialId: cred.id, request: act, result, mode: mode||'dry', status: result.success ? 'ok' : 'failed' })
+    res.json({ ok: true, tx })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.get('/transactions', (req, res) => {
+  const all = storage.listTransactions()
+  res.json(all)
 })
 
 app.get('/stats', (req, res) => {
