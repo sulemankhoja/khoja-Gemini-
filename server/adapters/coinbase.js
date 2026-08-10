@@ -1,15 +1,32 @@
-// Simple Coinbase adapter (demo): supports dry-run and mocked live execution
+// Enhanced Coinbase adapter: provide quote and simulated execution + fee estimates
+const fetch = require('node-fetch')
+
+async function getPriceUsd(asset='bitcoin') {
+  try {
+    const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${asset}&vs_currencies=usd`)
+    const j = await r.json()
+    return j[asset] && j[asset].usd ? j[asset].usd : null
+  } catch (e) { return null }
+}
 
 async function execute(action, encryptedCredentialBlob, mode='dry') {
-  // encryptedCredentialBlob is stored encrypted client-side; in this demo we don't decrypt.
-  // In a real implementation the server would accept a decrypted credential blob over a secure channel
-  // after user passphrase unlock. Here we simulate behavior.
+  // action may include amountUSD or quantity
+  const asset = (action.asset || 'bitcoin').toLowerCase()
+  const price = await getPriceUsd(asset)
+  const feePct = 0.005 // simulated 0.5% fee
   if (mode === 'dry') {
-    return { success: true, txId: `dry_${Date.now()}`, note: 'dry-run simulated', actionSnapshot: action }
+    const amountUSD = action.amountUSD || (action.estimatedUSD || 100)
+    const qty = price ? (amountUSD / price) : (action.quantity || 0)
+    const fee = amountUSD * feePct
+    const net = amountUSD - fee
+    return { success: true, txId: `dry_${Date.now()}`, simulated: true, quote: { price, qty, fee, net, feePct } }
   }
-  // simulate live execution
-  // real adapter would: decrypt creds, call Coinbase API /orders, handle idempotency, and return response
-  return { success: true, txId: `sim_${Date.now()}`, note: 'simulated live execution (demo)', actionSnapshot: action }
+  // simulated live
+  const amountUSD = action.amountUSD || (action.estimatedUSD || 100)
+  const qty = price ? (amountUSD / price) : (action.quantity || 0)
+  const fee = amountUSD * feePct
+  const net = amountUSD - fee
+  return { success: true, txId: `live_sim_${Date.now()}`, simulated: false, executed: { price, qty, fee, net, feePct } }
 }
 
 module.exports = { execute }

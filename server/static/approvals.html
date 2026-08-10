@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Approvals - Khoja</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px }
+      .manifest { border:1px solid #ddd; padding:10px; margin-bottom:10px }
+      .action { border:1px dashed #ccc; padding:8px; margin:6px }
+      textarea { width:100%; height:60px }
+      button { margin-right:8px }
+    </style>
+  </head>
+  <body>
+    <h1>Pending Manifests</h1>
+    <div id="list">Loading...</div>
+    <script>
+      async function api(path, opts) { const r = await fetch(path, Object.assign({credentials:'same-origin'}, opts)); return r.json() }
+      async function load() {
+        const d = document.getElementById('list'); d.innerHTML='Loading...'
+        const pending = await api('/updates/pending')
+        d.innerHTML=''
+        for (const m of pending) {
+          const box = document.createElement('div'); box.className='manifest'
+          box.innerHTML = `<h3>Manifest ${m.id} (category: ${m.category})</h3><div>generatedAt: ${m.generatedAt}</div><div><button data-id='${m.id}' class='show'>Show Diffs</button> <button data-id='${m.id}' class='approve'>Approve All</button></div><div class='diff' id='diff_${m.id}'></div>`
+          d.appendChild(box)
+        }
+        document.querySelectorAll('button.show').forEach(b => b.onclick = async ()=>{
+          const id = b.getAttribute('data-id')
+          const r = await api(`/updates/${id}/diff`)
+          const cont = document.getElementById('diff_'+id)
+          cont.innerHTML = ''
+          for (const diff of r.diffs) {
+            const a = diff.after
+            const div = document.createElement('div'); div.className='action'
+            div.innerHTML = `<input type='checkbox' data-id='${a.id}' checked /> <b>${a.title}</b> <div>raw: <pre>${a.rawText||''}</pre></div>`
+            const ta = document.createElement('textarea'); ta.value = a.displayText || ''
+            ta.onchange = ()=> { a.displayText = ta.value }
+            div.appendChild(ta)
+            cont.appendChild(div)
+          }
+          const btn = document.createElement('button'); btn.textContent='Approve Selected'
+          btn.onclick = async ()=>{
+            const checkboxes = cont.querySelectorAll('input[type=checkbox]')
+            const ids = []
+            for (const cb of checkboxes) if (cb.checked) ids.push(cb.getAttribute('data-id'))
+            const res = await api('/updates/approve', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ manifestId: id, itemIds: ids }) })
+            alert(JSON.stringify(res))
+            load()
+          }
+          cont.appendChild(btn)
+        })
+        document.querySelectorAll('button.approve').forEach(b=> b.onclick = async ()=>{
+          const id = b.getAttribute('data-id')
+          const res = await api('/updates/approve', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ manifestId: id }) })
+          alert(JSON.stringify(res))
+          load()
+        })
+      }
+      load()
+    </script>
+  </body>
+</html>
