@@ -5,33 +5,42 @@
     <title>khoja bot — overlay</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 8px; }
-      #overlay { width: 320px }
+      #overlay { width: 420px }
       button { margin: 4px }
-      ul { padding-left: 18px }
+      ul { padding-left: 18px; max-height:160px; overflow:auto }
       header { display:flex; justify-content:space-between; align-items:center }
       .drag { -webkit-app-region: drag; }
       .no-drag { -webkit-app-region: no-drag; }
+      .action-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px }
+      .metrics { margin-top:8px; background:#f7f7f7; padding:8px; border-radius:4px }
     </style>
   </head>
   <body>
     <div id="overlay">
       <header>
         <div class="drag">khoja bot</div>
-        <div class="no-drag">v0.1</div>
+        <div class="no-drag">v0.2</div>
       </header>
       <div>
         <button id="start">Start</button>
         <button id="stop">Stop</button>
+        <button id="install">Install Updates</button>
+        <button id="apply">Apply Selected Actions</button>
       </div>
-      <h4>Actions</h4>
+      <h4>Actions (select to enable)</h4>
       <ul id="actions"></ul>
-      <div>
+      <div class="metrics">
         <div>Expected total gain: <span id="expectedTotal">-</span></div>
         <div>Actual total gain: <span id="actualTotal">-</span></div>
+        <div>Trades executed: <span id="tradesCount">0</span></div>
+        <div>Net P&L: <span id="netPL">-</span></div>
+        <div>Win rate: <span id="winRate">-</span></div>
+        <div>Avg gain: <span id="avgGain">-</span></div>
+        <div>Max drawdown: <span id="maxDd">-</span></div>
       </div>
       <div>
         <h5>Logs</h5>
-        <pre id="logs" style="height:60px; overflow:auto; background:#f5f5f5"></pre>
+        <pre id="logs" style="height:100px; overflow:auto; background:#f5f5f5"></pre>
       </div>
     </div>
     <script src="renderer.js"></script>
