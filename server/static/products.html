@@ -4,14 +4,18 @@
     <meta charset="utf-8" />
     <title>Products - Khoja</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 20px }
-      .product { border: 1px solid #ddd; padding: 12px; margin-bottom:10px }
+      /* Red & Gold theme */
+      :root { --k-red: #7d0a0a; --k-gold: #d4af37; --card-bg: #7f0b0b; --muted:#f3e7d0 }
+      body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: linear-gradient(180deg,var(--k-red),#4f0606); color: var(--muted) }
+      h1 { color: var(--k-gold); margin-bottom: 12px }
+      .product { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,0,0,0.2); padding: 12px; margin-bottom:10px; border-radius:8px }
+      .product h3 { margin:0 0 6px 0; color: var(--k-gold) }
       .actions { margin-top:8px }
       textarea { width:100%; height:60px }
       input[type=text] { width: 300px }
-      button { margin-right:8px }
-      .success { color: green }
-      .error { color: red }
+      button { margin-right:8px; background: var(--k-gold); color: #610b0b; border: none; padding:6px 10px; border-radius:4px; cursor:pointer }
+      button.secondary { background: transparent; color: var(--muted); border:1px solid rgba(255,255,255,0.08) }
+      img.thumb { width:96px; height:96px; object-fit:cover; border-radius:6px; border:2px solid rgba(0,0,0,0.2) }
     </style>
   </head>
   <body>
@@ -19,5 +23,6 @@
     <div id="list">Loading...</div>
 
     <script src="/products-ui.js"></script>
+    <script src="/products_inject.html"></script>
   </body>
 </html>

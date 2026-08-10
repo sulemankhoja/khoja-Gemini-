@@ -1,5 +1,6 @@
 const { encrypt, decrypt } = require('../shared/storage')
 const storage = require('./storage')
+const artifactStore = require('./artifact_store')
 
 // Seed product catalog
 const PRODUCTS = [
@@ -105,4 +106,41 @@ function createDerivedActionsForProduct(id) {
   return a
 }
 
-module.exports = { initProducts, listProducts, getProduct, activateProduct, deactivateProduct, storeCredential, listCredentials, deleteCredential, approveForActions, createDerivedActionsForProduct }
+// Generate a simple red/gold SVG with letter K for product thumbnails
+function generateKSvg(opts) {
+  const size = opts && opts.size ? opts.size : 512
+  const kLetter = opts && opts.letter ? opts.letter : 'K'
+  const bg = '#7d0a0a' // deep red
+  const gold = '#d4af37'
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n  <rect width="100%" height="100%" fill="${bg}"/>\n  <g transform="translate(${size/2},${size/2})">\n    <text x="0" y="0" text-anchor="middle" alignment-baseline="central" font-family="Arial,Helvetica,sans-serif" font-size="${Math.floor(size*0.5)}" fill="${gold}" font-weight="700">${kLetter}</text>\n  </g>\n</svg>`
+  return svg
+}
+
+// Create a product from a design spec; if no image provided, generate one (K on red/gold)
+function createProductFromDesign(spec) {
+  const id = `prod_${Date.now()}`
+  const name = spec.name || spec.title || 'Untitled Product'
+  const desc = spec.description || spec.raw || ''
+  // persist product as pricing-type product for compatibility
+  const prod = { type: 'product', id, slug: id, name, desc, docsUrl: spec.docsUrl || null, signupUrl: spec.signupUrl || null, enabled: !!spec.enabled }
+  storage.addPricing(prod)
+
+  // if spec contains contentBase64 (image uploaded), save as artifact and attach
+  if (spec.contentBase64 && spec.filename) {
+    const artifactId = `art_${Date.now()}`
+    const dir = path.join(__dirname, '..', 'data', 'artifacts', artifactId)
+  }
+
+  // if no explicit image was provided, generate a K SVG and store it
+  const svg = generateKSvg({ size: 512, letter: 'K' })
+  const svgB64 = Buffer.from(svg, 'utf8').toString('base64')
+  const filePath = artifactStore.saveBase64File(`art_${Date.now()}`, `${id}.svg`, svgB64)
+  const sha = crypto.createHash('sha256').update(svg).digest('hex')
+  const meta = { filename: `${id}.svg`, path: filePath, size: Buffer.byteLength(svg, 'utf8'), mime: 'image/svg+xml', sha256: sha, productId: id, uploadedBy: 'bot', createdAt: new Date().toISOString() }
+  const art = storage.addArtifact(meta)
+  storage.attachArtifactToProduct(id, art.id)
+
+  return prod
+}
+
+module.exports = { initProducts, listProducts, getProduct, activateProduct, deactivateProduct, storeCredential, listCredentials, deleteCredential, approveForActions, createDerivedActionsForProduct, createProductFromDesign }
