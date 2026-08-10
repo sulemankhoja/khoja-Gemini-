@@ -9,13 +9,11 @@ const PRODUCTS = [
 ]
 
 function initProducts() {
-  const existing = storage._load ? storage._load() : null
-  // storage._load isn't exported; seed products via pricing object list for now
-  const s = storage.listPricing()
-  if (!Array.isArray(s) || s.length === 0) {
-    // store as pricing objects for visibility (we'll migrate to proper products table in next step)
+  const s = storage._load()
+  const hasProducts = (s.pricing || []).some(x=>x.type==='product')
+  if (!hasProducts) {
     for (const p of PRODUCTS) {
-      storage.addPricing({ type: 'product', id: p.id, slug: p.slug, name: p.name, desc: p.description, docsUrl: p.docsUrl, signupUrl: p.signupUrl, enabled: p.enabled })
+      storage.addPricing({ type: 'product', id: p.id, slug: p.slug, name: p.name, desc: p.description, docsUrl: p.docsUrl, signupUrl: p.signupUrl, enabled: p.enabled, createdAt: p.createdAt })
     }
   }
 }
@@ -73,4 +71,38 @@ function deleteCredential(credId) {
   return true
 }
 
-module.exports = { initProducts, listProducts, getProduct, activateProduct, deactivateProduct, storeCredential, listCredentials, deleteCredential }
+// Mark product as approved for creating actions (distinct from activation)
+function approveForActions(id) {
+  const s = storage._load()
+  const idx = s.pricing.findIndex(x => x.type==='product' && (x.id===id || x.slug===id))
+  if (idx === -1) return null
+  s.pricing[idx].approvedForActions = true
+  s.pricing[idx].approvedForActionsAt = new Date().toISOString()
+  storage._save(s)
+  return s.pricing[idx]
+}
+
+// Create derived action objects (not persisted here)
+function createDerivedActionsForProduct(id) {
+  const p = getProduct(id)
+  if (!p) return []
+  const now = Date.now()
+  const a = [{
+    id: `a_${now}`,
+    title: `Prepare integration with ${p.name}`,
+    productId: p.id,
+    side: 'execute',
+    actionType: 'api_call',
+    actionSubType: 'product_integration',
+    apiHints: { productId: p.id, endpoint: p.docsUrl || p.signupUrl, method: 'GET' },
+    displayText: `Integration action for ${p.name}`,
+    rawText: `Crawled product ${p.name} (${p.slug}) - use this action to integrate or provision APIs.`,
+    predictedGain: 0,
+    confidence: 0.5,
+    ttlSeconds: 86400,
+    createdAt: new Date().toISOString()
+  }]
+  return a
+}
+
+module.exports = { initProducts, listProducts, getProduct, activateProduct, deactivateProduct, storeCredential, listCredentials, deleteCredential, approveForActions, createDerivedActionsForProduct }
